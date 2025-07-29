@@ -1,0 +1,573 @@
+```html
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>库存管理系统</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#3b82f6',
+            success: '#10b981',
+            danger: '#ef4444',
+            warning: '#f59e0b'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    .tab-active {
+      border-bottom: 2px solid #3b82f6;
+      color: #3b82f6;
+      font-weight: 500;
+    }
+    .tab-inactive {
+      border-bottom: 2px solid transparent;
+      color: #6b7280;
+      font-weight: 400;
+    }
+    .tab-inactive:hover {
+      color: #4b5563;
+    }
+    .card {
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    }
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    }
+    .image-preview {
+      border: 2px dashed #d1d5db;
+      border-radius: 0.5rem;
+      min-height: 120px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: #f9fafb;
+      overflow: hidden;
+    }
+    .image-preview img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+    .upload-area {
+      cursor: pointer;
+    }
+    .upload-area:hover {
+      border-color: #3b82f6;
+      background-color: #f0f9ff;
+    }
+    .sync-indicator {
+      position: fixed;
+      bottom: 1rem;
+      right: 1rem;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background-color: #10b981;
+    }
+    .notification {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      padding: 0.75rem 1.25rem;
+      border-radius: 0.375rem;
+      color: white;
+      font-size: 0.875rem;
+      font-weight: 500;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      transform: translateX(150%);
+      transition: transform 0.3s ease;
+      z-index: 50;
+    }
+    .notification.show {
+      transform: translateX(0);
+    }
+    .notification.success {
+      background-color: #10b981;
+    }
+    .notification.warning {
+      background-color: #f59e0b;
+    }
+    .notification.danger {
+      background-color: #ef4444;
+    }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <div class="max-w-4xl mx-auto p-4 sm:p-6">
+    <header class="text-center mb-8">
+      <h1 class="text-2xl sm:text-3xl font-bold text-gray-800 mb-2">库存管理系统</h1>
+      <p class="text-gray-600">本地存储版（单用户使用）</p>
+    </header>
+
+    <!-- 重要提示 -->
+    <div class="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6">
+      <div class="flex">
+        <div class="flex-shrink-0">
+          <svg class="h-5 w-5 text-blue-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+          </svg>
+        </div>
+        <div class="ml-3">
+          <p class="text-sm text-blue-700">
+            本版本使用浏览器本地存储，数据仅保存在当前设备和浏览器中。
+            <strong>无法实现真正的多人实时同步</strong>，但解决了刷新页面数据丢失问题。
+          </p>
+          <p class="mt-2 text-sm text-blue-700">
+            如需真正的多人同步功能，需要搭建后端服务（如使用Node.js+Socket.io）。
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 选项卡导航 -->
+    <div class="flex border-b mb-6">
+      <button id="tab-inbound" class="tab-active flex-1 flex items-center justify-center px-4 py-3 font-medium">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+        </svg>
+        入库
+      </button>
+      <button id="tab-outbound" class="tab-inactive flex-1 flex items-center justify-center px-4 py-3 font-medium">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 12H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        出库
+      </button>
+      <button id="tab-stock" class="tab-inactive flex-1 flex items-center justify-center px-4 py-3 font-medium">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75a3 3 0 00-3-3M3.75 6H16.5l-1.285 4.284C15.058 10.956 14.61 11.5 14.094 11.5H6.906c-.516 0-.964-.544-1.122-1.216L4.5 6H3.75z" />
+        </svg>
+        库存
+      </button>
+    </div>
+
+    <!-- 入库表单 -->
+    <div id="inbound-section" class="card bg-white rounded-xl p-5 sm:p-6 mb-6">
+      <h2 class="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2 text-primary">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+        </svg>
+        新增入库
+      </h2>
+      <form id="inbound-form" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">商品图片</label>
+          <div class="upload-area" id="image-upload-area">
+            <div class="image-preview" id="image-preview">
+              <div class="text-center p-4 text-gray-500">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 mx-auto mb-2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.013 5.25 5.25 0 013.758 6.02V21l4.75-4.25" />
+                </svg>
+                <p class="text-sm">点击此处上传图片</p>
+                <p class="text-xs text-gray-400 mt-1">支持JPG、PNG格式，最大5MB</p>
+              </div>
+              <input type="file" id="inbound-image-file" accept="image/jpeg,image/png" class="hidden" />
+            </div>
+          </div>
+          <p class="mt-1 text-xs text-gray-500">请先上传商品图片</p>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">名称</label>
+          <input type="text" id="inbound-name" placeholder="请输入商品名称" required
+                 class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">数量</label>
+          <input type="number" id="inbound-quantity" min="1" required
+                 class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+        </div>
+        <button type="submit" 
+                class="w-full bg-primary text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors font-medium">
+          提交入库
+        </button>
+      </form>
+    </div>
+
+    <!-- 出库表单 -->
+    <div id="outbound-section" class="card bg-white rounded-xl p-5 sm:p-6 mb-6 hidden">
+      <h2 class="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2 text-danger">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 12H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        商品出库
+      </h2>
+      <form id="outbound-form" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">选择商品</label>
+          <select id="outbound-item" required
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500">
+            <option value="">请选择商品</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">出库数量</label>
+          <input type="number" id="outbound-quantity" min="1" required
+                 class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500">
+        </div>
+        <button type="submit" 
+                class="w-full bg-danger text-white py-2 px-4 rounded-md hover:bg-red-700 transition-colors font-medium">
+          提交出库
+        </button>
+      </form>
+    </div>
+
+    <!-- 库存表格 -->
+    <div id="stock-section" class="card bg-white rounded-xl overflow-hidden mb-6 hidden">
+      <div class="px-5 sm:px-6 py-4 border-b bg-gray-50">
+        <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2 text-success">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75a3 3 0 00-3-3M3.75 6H16.5l-1.285 4.284C15.058 10.956 14.61 11.5 14.094 11.5H6.906c-.516 0-.964-.544-1.122-1.216L4.5 6H3.75z" />
+          </svg>
+          当前库存
+        </h2>
+      </div>
+      <div id="stock-empty" class="p-8 text-center text-gray-500">
+        暂无库存记录，请先添加商品
+      </div>
+      <div class="overflow-x-auto hidden" id="stock-table-container">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">图片</th>
+              <th class="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">名称</th>
+              <th class="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">数量</th>
+            </tr>
+          </thead>
+          <tbody id="stock-body" class="bg-white divide-y divide-gray-200">
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <footer class="mt-8 text-center text-gray-500 text-sm">
+      库存管理系统 © <span id="current-year"></span>
+    </footer>
+  </div>
+
+  <!-- 通知组件 -->
+  <div class="notification" id="notification"></div>
+
+  <script>
+    // 初始化
+    document.getElementById('current-year').textContent = new Date().getFullYear();
+    
+    // 本地存储键名
+    const STORAGE_KEY = 'inventory-system-data';
+    
+    // 当前库存数据
+    let inventory = [];
+    
+    // DOM元素
+    const tabs = {
+      inbound: document.getElementById('tab-inbound'),
+      outbound: document.getElementById('tab-outbound'),
+      stock: document.getElementById('tab-stock')
+    };
+    
+    const sections = {
+      inbound: document.getElementById('inbound-section'),
+      outbound: document.getElementById('outbound-section'),
+      stock: document.getElementById('stock-section')
+    };
+    
+    const stockBody = document.getElementById('stock-body');
+    const stockEmpty = document.getElementById('stock-empty');
+    const stockTableContainer = document.getElementById('stock-table-container');
+    const outboundSelect = document.getElementById('outbound-item');
+    const imageUploadArea = document.getElementById('image-upload-area');
+    const imageFileInput = document.getElementById('inbound-image-file');
+    const imagePreview = document.getElementById('image-preview');
+    const notification = document.getElementById('notification');
+    
+    // 显示通知
+    function showNotification(message, type = 'success') {
+      notification.textContent = message;
+      notification.className = 'notification ' + type;
+      
+      // 添加显示类
+      setTimeout(() => {
+        notification.classList.add('show');
+      }, 10);
+      
+      // 3秒后隐藏
+      setTimeout(() => {
+        notification.classList.remove('show');
+      }, 3000);
+    }
+    
+    // 选项卡切换功能
+    Object.keys(tabs).forEach(tabName => {
+      tabs[tabName].addEventListener('click', () => {
+        // 更新选项卡状态
+        Object.keys(tabs).forEach(key => {
+          tabs[key].className = key === tabName ? 'tab-active flex-1 flex items-center justify-center px-4 py-3 font-medium' 
+                                            : 'tab-inactive flex-1 flex items-center justify-center px-4 py-3 font-medium';
+          sections[key].classList.toggle('hidden', key !== tabName);
+        });
+        
+        // 如果切换到出库或库存，确保数据是最新的
+        if (tabName === 'outbound' || tabName === 'stock') {
+          loadInventory();
+        }
+      });
+    });
+    
+    // 图片上传功能
+    imageUploadArea.addEventListener('click', () => {
+      imageFileInput.click();
+    });
+    
+    imageFileInput.addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      
+      // 验证文件类型
+      const validTypes = ['image/jpeg', 'image/png'];
+      if (!validTypes.includes(file.type)) {
+        showNotification('仅支持JPG和PNG格式的图片', 'warning');
+        return;
+      }
+      
+      // 验证文件大小（5MB）
+      if (file.size > 5 * 1024 * 1024) {
+        showNotification('图片大小不能超过5MB', 'warning');
+        return;
+      }
+      
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        // 更新预览
+        imagePreview.innerHTML = `
+          <img src="${event.target.result}" alt="商品预览" class="max-h-full max-w-full">
+        `;
+      };
+      reader.readAsDataURL(file);
+    });
+    
+    // 加载库存数据
+    function loadInventory() {
+      try {
+        const storedData = localStorage.getItem(STORAGE_KEY);
+        inventory = storedData ? JSON.parse(storedData) : [];
+        
+        // 更新UI
+        updateOutboundSelect();
+        renderStockTable();
+        
+        return true;
+      } catch (error) {
+        console.error('加载库存数据失败:', error);
+        showNotification('数据加载失败，请重试', 'danger');
+        return false;
+      }
+    }
+    
+    // 保存库存数据
+    function saveInventory() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(inventory));
+        return true;
+      } catch (error) {
+        console.error('保存库存数据失败:', error);
+        showNotification('数据保存失败，请检查浏览器设置', 'danger');
+        return false;
+      }
+    }
+    
+    // 更新出库选择框
+    function updateOutboundSelect() {
+      outboundSelect.innerHTML = '<option value="">请选择商品</option>';
+      inventory.forEach(item => {
+        const option = document.createElement('option');
+        option.value = item.name;
+        option.textContent = `${item.name} (库存: ${item.quantity})`;
+        outboundSelect.appendChild(option);
+      });
+    }
+    
+    // 渲染库存表格
+    function renderStockTable() {
+      stockBody.innerHTML = '';
+      
+      if (inventory.length === 0) {
+        stockEmpty.classList.remove('hidden');
+        stockTableContainer.classList.add('hidden');
+        return;
+      }
+      
+      stockEmpty.classList.add('hidden');
+      stockTableContainer.classList.remove('hidden');
+      
+      inventory.forEach(item => {
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-gray-50';
+        row.innerHTML = `
+          <td class="px-4 sm:px-6 py-4 whitespace-nowrap">
+            <div class="flex-shrink-0 h-12 w-12">
+              <img class="h-12 w-12 rounded object-cover border" 
+                   src="${item.imageUrl}" 
+                   alt="${item.name}"
+                   onerror="this.onerror=null; this.src='https://placehold.co/80x80/3b82f6/ffffff?text=IMG';">
+            </div>
+          </td>
+          <td class="px-4 sm:px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${item.name}</td>
+          <td class="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.quantity}</td>
+        `;
+        stockBody.appendChild(row);
+      });
+    }
+    
+    // 入库表单提交
+    document.getElementById('inbound-form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      
+      const name = document.getElementById('inbound-name').value.trim();
+      const quantity = parseInt(document.getElementById('inbound-quantity').value);
+      
+      // 验证图片是否已上传
+      const imgElement = imagePreview.querySelector('img');
+      const imageUrl = imgElement ? imgElement.src : '';
+      
+      if (!imageUrl) {
+        // 高亮显示图片区域
+        imageUploadArea.classList.add('border-2', 'border-danger');
+        setTimeout(() => {
+          imageUploadArea.classList.remove('border-2', 'border-danger');
+        }, 1500);
+        
+        showNotification('请先上传商品图片！', 'warning');
+        return;
+      }
+      
+      // 验证名称
+      if (!name) {
+        document.getElementById('inbound-name').classList.add('border', 'border-danger');
+        setTimeout(() => {
+          document.getElementById('inbound-name').classList.remove('border', 'border-danger');
+        }, 1500);
+        showNotification('请输入商品名称', 'warning');
+        return;
+      }
+      
+      // 验证数量
+      if (isNaN(quantity) || quantity <= 0) {
+        document.getElementById('inbound-quantity').classList.add('border', 'border-danger');
+        setTimeout(() => {
+          document.getElementById('inbound-quantity').classList.remove('border', 'border-danger');
+        }, 1500);
+        showNotification('请输入有效的数量', 'warning');
+        return;
+      }
+      
+      // 检查是否已存在
+      const existingIndex = inventory.findIndex(item => item.name === name);
+      
+      if (existingIndex !== -1) {
+        inventory[existingIndex].quantity += quantity;
+      } else {
+        inventory.push({
+          id: Date.now(),
+          name: name,
+          quantity: quantity,
+          imageUrl: imageUrl
+        });
+      }
+      
+      // 保存到本地存储
+      if (saveInventory()) {
+        // 重置表单
+        document.getElementById('inbound-form').reset();
+        imagePreview.innerHTML = `
+          <div class="text-center p-4 text-gray-500">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 mx-auto mb-2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.013 5.25 5.25 0 013.758 6.02V21l4.75-4.25" />
+            </svg>
+            <p class="text-sm">点击此处上传图片</p>
+            <p class="text-xs text-gray-400 mt-1">支持JPG、PNG格式，最大5MB</p>
+          </div>
+        `;
+        
+        // 更新UI
+        updateOutboundSelect();
+        renderStockTable();
+        
+        showNotification('入库成功！数据已保存', 'success');
+      }
+    });
+    
+    // 出库表单提交
+    document.getElementById('outbound-form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      
+      const name = document.getElementById('outbound-item').value;
+      const quantity = parseInt(document.getElementById('outbound-quantity').value);
+      
+      if (!name || isNaN(quantity) || quantity <= 0) {
+        showNotification('请选择商品并输入有效数量', 'warning');
+        return;
+      }
+      
+      const itemIndex = inventory.findIndex(item => item.name === name);
+      if (itemIndex === -1) {
+        showNotification('未找到该商品', 'warning');
+        return;
+      }
+      
+      if (quantity > inventory[itemIndex].quantity) {
+        showNotification('出库数量不能大于库存数量', 'warning');
+        return;
+      }
+      
+      // 更新库存
+      inventory[itemIndex].quantity -= quantity;
+      
+      // 如果库存为0，移除商品
+      if (inventory[itemIndex].quantity <= 0) {
+        inventory.splice(itemIndex, 1);
+      }
+      
+      // 保存到本地存储
+      if (saveInventory()) {
+        // 重置表单
+        document.getElementById('outbound-form').reset();
+        
+        // 更新UI
+        updateOutboundSelect();
+        renderStockTable();
+        
+        showNotification('出库成功！数据已保存', 'success');
+      }
+    });
+    
+    // 初始化 - 加载库存数据
+    document.addEventListener('DOMContentLoaded', () => {
+      loadInventory();
+      
+      // 添加存储事件监听器，实现同一浏览器内多标签页同步
+      window.addEventListener('storage', (event) => {
+        if (event.key === STORAGE_KEY) {
+          loadInventory();
+          showNotification('数据已从其他标签页更新', 'success');
+        }
+      });
+      
+      // 默认显示库存页面
+      tabs.stock.click();
+    });
+  </script>
+</body>
+</html>
+```
